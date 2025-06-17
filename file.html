@@ -155,11 +155,32 @@
         .vote-button:hover {
             background-color: #45a049;
         }
+        .cancel-button {
+            display: block;
+            margin: 20px auto;
+            padding: 10px 20px;
+            background-color: #f44336;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .cancel-button:hover {
+            background-color: #d32f2f;
+        }
         .voted-message {
             text-align: center;
             margin-top: 20px;
             color: #666;
             font-style: italic;
+        }
+        .selected-date {
+            border: 2px solid #4CAF50 !important; /* 选中日期的绿色边框 */
+        }
+        .already-voted {
+            pointer-events: none; /* 已投票用户不能再次投票 */
+            opacity: 0.7;
         }
     </style>
 </head>
@@ -200,6 +221,7 @@
         </div>
         
         <button class="vote-button" id="submitVote">提交我的投票</button>
+        <button class="cancel-button" id="cancelVote">取消投票</button>
         <div class="voted-message" id="votedMessage" style="display: none;"></div>
     </div>
     
@@ -217,6 +239,7 @@
         let currentDate = new Date();
         let currentMonth = currentDate.getMonth();
         let currentYear = currentDate.getFullYear();
+        let hasVoted = false; // 用户是否已经投票
         
         // 初始化页面
         document.addEventListener('DOMContentLoaded', function() {
@@ -224,6 +247,16 @@
             const savedVotes = localStorage.getItem('activityVotes');
             if (savedVotes) {
                 votes = JSON.parse(savedVotes);
+            }
+            
+            // 检查用户是否已经投票
+            hasVoted = localStorage.getItem('hasVoted') === 'true';
+            
+            // 如果用户已经投票，禁用投票按钮
+            if (hasVoted) {
+                document.getElementById('submitVote').classList.add('already-voted');
+                document.getElementById('submitVote').disabled = true;
+                document.getElementById('submitVote').textContent = '您已投过票';
             }
             
             // 加载当前月份的日历
@@ -249,6 +282,7 @@
             });
             
             document.getElementById('submitVote').addEventListener('click', submitVote);
+            document.getElementById('cancelVote').addEventListener('click', cancelVote);
         });
         
         // 加载日历
@@ -306,9 +340,20 @@
                             </div>
                         `;
                         
-                        td.addEventListener('click', function() {
-                            toggleDateSelection(this, fullDate);
-                        });
+                        // 添加选中状态的判断
+                        if (selectedDates.includes(fullDate)) {
+                            td.classList.add('selected-date');
+                        }
+                        
+                        // 如果用户已经投票，禁用日期选择
+                        if (hasVoted) {
+                            td.style.pointerEvents = 'none';
+                            td.style.opacity = '0.7';
+                        } else {
+                            td.addEventListener('click', function() {
+                                toggleDateSelection(this, fullDate);
+                            });
+                        }
                         
                         date++;
                     }
@@ -332,19 +377,15 @@
         function toggleDateSelection(cell, date) {
             const selectedElement = cell.querySelector('.vote-day');
             
-            if (selectedElement.classList.contains('selected')) {
+            if (selectedElement.classList.contains('selected-date')) {
                 // 取消选择
-                selectedElement.classList.remove('selected');
-                Array.from(selectedElement.querySelectorAll('.vote-fill-block')).forEach(block => {
-                    block.style.opacity = '0.5';
-                });
+                cell.classList.remove('selected-date');
+                selectedElement.classList.remove('selected-date');
                 selectedDates = selectedDates.filter(d => d !== date);
             } else {
                 // 选择日期
-                selectedElement.classList.add('selected');
-                Array.from(selectedElement.querySelectorAll('.vote-fill-block')).forEach(block => {
-                    block.style.opacity = '1';
-                });
+                cell.classList.add('selected-date');
+                selectedElement.classList.add('selected-date');
                 selectedDates.push(date);
             }
         }
@@ -389,8 +430,15 @@
                 votes[date] = (votes[date] || 0) + 1;
             });
             
-            // 保存到本地存储
+            // 保存投票记录
             localStorage.setItem('activityVotes', JSON.stringify(votes));
+            localStorage.setItem('hasVoted', 'true');
+            
+            // 更新已投票状态
+            hasVoted = true;
+            document.getElementById('submitVote').classList.add('already-voted');
+            document.getElementById('submitVote').disabled = true;
+            document.getElementById('submitVote').textContent = '您已投过票';
             
             // 重新加载日历和结果
             loadCalendar();
@@ -405,6 +453,42 @@
             
             // 重置选择
             selectedDates = [];
+        }
+        
+        // 取消投票
+        function cancelVote() {
+            // 如果用户已经提交过投票
+            if (hasVoted) {
+                // 清除投票记录
+                localStorage.removeItem('hasVoted');
+                localStorage.removeItem('activityVotes');
+                
+                // 重置投票状态
+                hasVoted = false;
+                document.getElementById('submitVote').classList.remove('already-voted');
+                document.getElementById('submitVote').disabled = false;
+                document.getElementById('submitVote').textContent = '提交我的投票';
+                document.getElementById('votedMessage').style.display = 'none';
+                
+                // 重置投票数据
+                votes = {};
+                selectedDates = [];
+                
+                // 重新加载日历
+                loadCalendar();
+            } else {
+                // 清除已选择的日期
+                selectedDates.forEach(date => {
+                    const elements = document.querySelectorAll(`.vote-day[data-date="${date}"]`);
+                    elements.forEach(element => {
+                        element.closest('td').classList.remove('selected-date');
+                        element.classList.remove('selected-date');
+                    });
+                });
+                
+                // 重置选择
+                selectedDates = [];
+            }
         }
     </script>
 </body>
