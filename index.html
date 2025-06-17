@@ -572,7 +572,7 @@
         
           // 取消投票（Firebase版）
           async function cancelVote() {
-            const { ref, remove, update，database } = window.firebaseDatabase;
+            const { ref, remove, update, database } = window.firebaseDatabase;
               
             if (hasVoted) {
                 if (!confirm('确定要取消您的投票吗？')) return;
