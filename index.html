@@ -384,6 +384,15 @@
                         // 填充日期
                         const dayOfMonth = date;
                         const fullDate = `${currentYear}-${currentMonth + 1}-${dayOfMonth}`;
+
+                        // 检查是否是今天
+                        const today = new Date();
+                        const isToday = currentYear === today.getFullYear() && 
+                                        currentMonth === today.getMonth() && 
+                                        dayOfMonth === today.getDate();
+                        
+                        // 添加Today标记
+                        const todayMarker = isToday ? '<div class="today-marker">Today</div>' : '';
                         
                         // 创建投票填充容器
                         const voteFillContainer = document.createElement('div');
@@ -404,7 +413,10 @@
                                 <div class="vote-count">${votesForDate || 0}</div>
                             </div>
                         `;
-                        
+
+                        if (isToday) {
+                            td.classList.add('today');
+                        }
                         // 添加选中状态的判断
                         if (selectedDates.includes(fullDate)) {
                             td.classList.add('selected');
