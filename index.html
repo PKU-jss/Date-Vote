@@ -200,6 +200,26 @@
     </style>
 </head>
 <body>
+    <script type="module">
+      // Firebase 初始化
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
+      import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
+    
+      const firebaseConfig = {
+        apiKey: "AIzaSyDZT7XIeBQq9uHY1kZvuQYcZm6KT1jV1Bg",
+        authDomain: "date-vote.firebaseapp.com",
+        databaseURL: "https://date-vote-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "date-vote",
+        storageBucket: "date-vote.firebasestorage.app",
+        messagingSenderId: "720905899679",
+        appId: "1:720905899679:web:9b831a3a38ffb2f37f9caa",
+        measurementId: "G-Q0EXN3N281"
+      };
+    
+      const app = initializeApp(firebaseConfig);
+      const database = getDatabase(app);
+    </script>
+    
     <h1>欢迎来到Anna的暑期乐园</h1>
     <p class="subtitle">请选择合适的活动日期</p>
 
@@ -265,24 +285,33 @@
         let currentMonth = currentDate.getMonth();
         let currentYear = currentDate.getFullYear();
         let hasVoted = false; // 用户是否已经投票
+        let userId = localStorage.getItem('userId') || `user_${Date.now()}`;
         
         // 初始化页面
         document.addEventListener('DOMContentLoaded', function() {
-            // 从本地存储加载投票数据
-            const savedVotes = localStorage.getItem('activityVotes');
-            if (savedVotes) {
-                votes = JSON.parse(savedVotes);
-            }
+            localStorage.setItem('userId', userId);
+
+            // 监听投票数据变化
+            const votesRef = ref(database, 'votes');
+            onValue(votesRef, (snapshot) => {
+              votes = snapshot.val() || {};
+              loadCalendar();
+            });
             
             // 检查用户是否已经投票
-            hasVoted = localStorage.getItem('hasVoted') === 'true';
+            const userRef = ref(database, `users/${userId}`);
+            onValue(userRef, (snapshot) => {
+              const userData = snapshot.val();
+              hasVoted = userData?.hasVoted || false;
             
             // 如果用户已经投票，禁用投票按钮
             if (hasVoted) {
                 document.getElementById('submitVote').classList.add('already-voted');
                 document.getElementById('submitVote').disabled = true;
                 document.getElementById('submitVote').textContent = '您已投过票';
-            }
+                selectedDates = userData.votedDates || [];
+              }
+            });
             
             // 加载当前月份的日历
             loadCalendar();
@@ -310,7 +339,7 @@
             document.getElementById('cancelVote').addEventListener('click', cancelVote);
         });
         
-        // 加载日历
+        // 加载日历（这当中不知道是否符合要求）
         function loadCalendar() {
             const calendarBody = document.getElementById('calendarBody');
             calendarBody.innerHTML = '';
@@ -438,81 +467,89 @@
                 }
             });
         }
+        //（这当中不知道是否符合要求）
         
-        // 提交投票
-        function submitVote() {
+        // 提交投票（Firebase版）
+          async function submitVote() {
             if (selectedDates.length === 0) {
-                alert('请选择至少一个日期再提交投票');
-                return;
+              alert('请选择至少一个日期再提交投票');
+              return;
             }
             
             if (hasVoted) {
-                alert('您已经投过票了，每个用户只能投票一次');
-                return;
+              alert('您已经投过票了，每个用户只能投票一次');
+              return;
             }
             
-            // 更新投票数据
-            selectedDates.forEach(date => {
-                votes[date] = (votes[date] || 0) + 1;
-            });
-            
-            // 保存投票记录
-            localStorage.setItem('activityVotes', JSON.stringify(votes));
-            localStorage.setItem('hasVoted', 'true');
-            
-            // 更新已投票状态
-            hasVoted = true;
-            document.getElementById('submitVote').classList.add('already-voted');
-            document.getElementById('submitVote').disabled = true;
-            document.getElementById('submitVote').textContent = '您已投过票';
-            
-            // 重新加载日历和结果
-            loadCalendar();
-            
-            // 显示已投票消息
-            const dateText = selectedDates.length > 1 ? 
+            try {
+              // 更新投票数据
+              const newVotes = {...votes};
+              selectedDates.forEach(date => {
+                newVotes[date] = (newVotes[date] || 0) + 1;
+              });
+              
+              // 原子操作：同时更新投票数据和用户状态
+              const updates = {
+                'votes': newVotes,
+                [`users/${userId}`]: {
+                  hasVoted: true,
+                  votedDates: selectedDates,
+                  timestamp: Date.now()
+                }
+              };
+              
+              await set(ref(database), updates);
+              
+              // 更新UI状态
+              document.getElementById('submitVote').classList.add('already-voted');
+              document.getElementById('submitVote').disabled = true;
+              document.getElementById('submitVote').textContent = '您已投过票';
+              
+              // 显示成功消息
+              const dateText = selectedDates.length > 1 ? 
                 `您选择了以下日期：` + selectedDates.map(date => `${date.split('-')[0]}年${date.split('-')[1]}月${date.split('-')[2]}日`).join('，') :
                 `您选择了 ${selectedDates[0].split('-')[0]}年${selectedDates[0].split('-')[1]}月${selectedDates[0].split('-')[2]}日`;
                 
-            document.getElementById('votedMessage').textContent = `感谢您的投票！${dateText}`;
-            document.getElementById('votedMessage').style.display = 'block';
-            
-            // 重置选择
-            selectedDates = [];
-        }
+              document.getElementById('votedMessage').textContent = `感谢您的投票！${dateText}`;
+              document.getElementById('votedMessage').style.display = 'block';
+              
+              selectedDates = [];
+            } catch (error) {
+              console.error("投票提交失败:", error);
+              alert('投票提交失败，请刷新页面重试');
+            }
+          }
         
-        // 取消投票
-        function cancelVote() {
-            // 如果用户已经提交过投票
+          // 取消投票（Firebase版）
+          async function cancelVote() {
             if (hasVoted) {
-                // 清除投票记录
-                localStorage.removeItem('hasVoted');
-                localStorage.removeItem('activityVotes');
+              try {
+                // 从Firebase删除用户投票记录
+                const userRef = ref(database, `users/${userId}`);
+                await remove(userRef);
                 
-                // 重置投票状态
+                // 重置本地状态
                 hasVoted = false;
                 document.getElementById('submitVote').classList.remove('already-voted');
                 document.getElementById('submitVote').disabled = false;
                 document.getElementById('submitVote').textContent = '提交我的投票';
                 document.getElementById('votedMessage').style.display = 'none';
                 
-                // 重置投票数据
-                votes = {};
                 selectedDates = [];
-                
-                // 重新加载日历
-                loadCalendar();
+              } catch (error) {
+                console.error("取消投票失败:", error);
+                alert('取消投票失败，请刷新页面重试');
+              }
             } else {
-                // 清除已选择的日期
-                const selectedCells = document.querySelectorAll('.day-cell.selected');
-                selectedCells.forEach(cell => {
-                    cell.classList.remove('selected');
-                });
-                
-                // 重置选择
-                selectedDates = [];
+              // 清除已选择的日期
+              const selectedCells = document.querySelectorAll('.day-cell.selected');
+              selectedCells.forEach(cell => {
+                cell.classList.remove('selected');
+              });
+              selectedDates = [];
             }
-        }
+          }
+
     </script>
 </body>
 </html>
