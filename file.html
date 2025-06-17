@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>活动日期投票</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .calendar-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .month-selector {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .nav-button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .nav-button:hover {
+            background-color: #45a049;
+        }
+        table.calendar {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table.calendar th {
+            text-align: center;
+            padding: 10px;
+            background-color: #f2f2f2;
+        }
+        table.calendar td {
+            text-align: center;
+            padding: 10px;
+            border: 1px solid #ddd;
+            position: relative;
+            cursor: pointer;
+            height: 80px;
+        }
+        table.calendar td:hover {
+            background-color: #f5f5f5;
+        }
+        table.calendar td.empty {
+            background-color: #f9f9f9;
+            cursor: default;
+        }
+        .vote-day {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        .vote-day-number {
+            position: absolute;
+            top: 5px;
+            left: 0;
+            right: 0;
+            text-align: center;
+        }
+        .vote-fill {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: #4CAF50;
+            transition: height 0.3s ease;
+        }
+        .vote-count {
+            position: absolute;
+            bottom: 5px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 12px;
+            color: #333;
+        }
+        .legend {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            background-color: #4CAF50;
+        }
+        .result-section {
+            margin-top: 30px;
+        }
+        .result-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .result-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .vote-button {
+            display: block;
+            margin: 20px auto;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .vote-button:hover {
+            background-color: #45a049;
+        }
+        .voted-message {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <h1>请选择适合您的活动日期</h1>
+    
+    <div class="calendar-container">
+        <div class="calendar-header">
+            <div class="nav-buttons">
+                <button class="nav-button" id="prevMonth">上个月</button>
+                <button class="nav-button" id="nextMonth">下个月</button>
+            </div>
+            <div class="month-selector" id="currentMonth"></div>
+        </div>
+        
+        <table class="calendar" id="calendarTable">
+            <thead>
+                <tr>
+                    <th>日</th>
+                    <th>一</th>
+                    <th>二</th>
+                    <th>三</th>
+                    <th>四</th>
+                    <th>五</th>
+                    <th>六</th>
+                </tr>
+            </thead>
+            <tbody id="calendarBody">
+                <!-- 日历内容将通过JavaScript动态生成 -->
+            </tbody>
+        </table>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color"></div>
+                <span>投票数越多，颜色越深</span>
+            </div>
+        </div>
+        
+        <button class="vote-button" id="submitVote">提交我的投票</button>
+        <div class="voted-message" id="votedMessage" style="display: none;"></div>
+    </div>
+    
+    <div class="result-section">
+        <div class="result-title">当前投票结果</div>
+        <ul class="result-list" id="resultList">
+            <!-- 投票结果将通过JavaScript动态生成 -->
+        </ul>
+    </div>
+
+    <script>
+        // 存储投票数据的变量
+        let votes = {};
+        let selectedDate = null;
+        let currentDate = new Date();
+        let currentMonth = currentDate.getMonth();
+        let currentYear = currentDate.getFullYear();
+        
+        // 初始化页面
+        document.addEventListener('DOMContentLoaded', function() {
+            // 从本地存储加载投票数据
+            const savedVotes = localStorage.getItem('activityVotes');
+            if (savedVotes) {
+                votes = JSON.parse(savedVotes);
+            }
+            
+            // 加载当前月份的日历
+            loadCalendar();
+            
+            // 绑定事件监听器
+            document.getElementById('prevMonth').addEventListener('click', function() {
+                currentMonth--;
+                if (currentMonth < 0) {
+                    currentMonth = 11;
+                    currentYear--;
+                }
+                loadCalendar();
+            });
+            
+            document.getElementById('nextMonth').addEventListener('click', function() {
+                currentMonth++;
+                if (currentMonth > 11) {
+                    currentMonth = 0;
+                    currentYear++;
+                }
+                loadCalendar();
+            });
+            
+            document.getElementById('submitVote').addEventListener('click', submitVote);
+        });
+        
+        // 加载日历
+        function loadCalendar() {
+            const calendarBody = document.getElementById('calendarBody');
+            calendarBody.innerHTML = '';
+            
+            // 更新月份显示
+            const monthNames = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
+            document.getElementById('currentMonth').textContent = `${currentYear}年 ${monthNames[currentMonth]}`;
+            
+            // 获取当月第一天和最后一天
+            const firstDay = new Date(currentYear, currentMonth, 1);
+            const lastDay = new Date(currentYear, currentMonth + 1, 0);
+            
+            // 获取当月第一天是星期几（0是星期日）
+            const firstDayOfWeek = firstDay.getDay();
+            
+            // 生成日历的行和单元格
+            let date = 1;
+            let totalDays = lastDay.getDate();
+            
+            for (let row = 0; row < 6; row++) {
+                const tr = document.createElement('tr');
+                
+                for (let col = 0; col < 7; col++) {
+                    const td = document.createElement('td');
+                    td.classList.add('day-cell');
+                    
+                    if ((row === 0 && col < firstDayOfWeek) || date > totalDays) {
+                        // 空单元格
+                        td.classList.add('empty');
+                    } else {
+                        // 填充日期
+                        const dayOfMonth = date;
+                        const fullDate = `${currentYear}-${currentMonth + 1}-${dayOfMonth}`;
+                        
+                        td.innerHTML = `
+                            <div class="vote-day" data-date="${fullDate}">
+                                <div class="vote-day-number">${dayOfMonth}</div>
+                                <div class="vote-fill" style="height: ${getVotePercentage(fullDate)}%;"></div>
+                                <div class="vote-count">${votes[fullDate] || 0}</div>
+                            </div>
+                        `;
+                        
+                        td.addEventListener('click', function() {
+                            toggleDateSelection(this, fullDate);
+                        });
+                        
+                        date++;
+                    }
+                    
+                    tr.appendChild(td);
+                }
+                
+                calendarBody.appendChild(tr);
+                
+                // 如果已经填充完所有日期，则退出循环
+                if (date > totalDays) {
+                    break;
+                }
+            }
+            
+            // 更新投票结果
+            updateResults();
+        }
+        
+        // 切换日期选择状态
+        function toggleDateSelection(cell, date) {
+            // 取消之前选择的日期
+            const selectedCells = document.querySelectorAll('.day-cell.selected');
+            selectedCells.forEach(cell => {
+                cell.classList.remove('selected');
+                cell.querySelector('.vote-day').style.boxShadow = 'none';
+            });
+            
+            // 选中当前日期
+            if (cell.classList.contains('selected')) {
+                cell.classList.remove('selected');
+                cell.querySelector('.vote-day').style.boxShadow = 'none';
+                selectedDate = null;
+            } else {
+                cell.classList.add('selected');
+                cell.querySelector('.vote-day').style.boxShadow = '0 0 5px 2px rgba(76, 175, 80, 0.5)';
+                selectedDate = date;
+            }
+        }
+        
+        // 获取投票百分比
+        function getVotePercentage(date) {
+            const totalVotes = Object.values(votes).reduce((sum, count) => sum + count, 0);
+            if (totalVotes === 0) {
+                return 0;
+            }
+            return Math.min(100, (votes[date] || 0) / totalVotes * 100);
+        }
+        
+        // 更新投票结果显示
+        function updateResults() {
+            const resultList = document.getElementById('resultList');
+            resultList.innerHTML = '';
+            
+            // 获取当前显示月份的所有日期
+            const monthDays = [];
+            for (let date = 1; date <= new Date(currentYear, currentMonth + 1, 0).getDate(); date++) {
+                monthDays.push(`${currentYear}-${currentMonth + 1}-${date}`);
+            }
+            
+            // 按投票数排序
+            monthDays.sort((a, b) => (votes[b] || 0) - (votes[a] || 0));
+            
+            monthDays.forEach(day => {
+                if (votes[day]) {
+                    const formattedDay = `${day.split('-')[0]}年${day.split('-')[1]}月${day.split('-')[2]}日`;
+                    const li = document.createElement('li');
+                    li.className = 'result-item';
+                    li.innerHTML = `
+                        <span>${formattedDay}</span>
+                        <span>${votes[day]} 票</span>
+                    `;
+                    resultList.appendChild(li);
+                }
+            });
+        }
+        
+        // 提交投票
+        function submitVote() {
+            if (!selectedDate) {
+                alert('请选择一个日期再提交投票');
+                return;
+            }
+            
+            // 更新投票数据
+            votes[selectedDate] = (votes[selectedDate] || 0) + 1;
+            
+            // 保存到本地存储
+            localStorage.setItem('activityVotes', JSON.stringify(votes));
+            
+            // 重新加载日历和结果
+            loadCalendar();
+            
+            // 显示已投票消息
+            document.getElementById('votedMessage').textContent = `感谢您的投票！您选择了 ${selectedDate}`;
+            document.getElementById('votedMessage').style.display = 'block';
+            
+            // 禁用提交按钮
+            document.getElementById('submitVote').disabled = true;
+        }
+    </script>
+</body>
+</html>
