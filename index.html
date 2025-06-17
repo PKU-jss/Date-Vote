@@ -201,7 +201,6 @@
 </head>
 <body>
     <script type="module">
-      // Firebase 初始化
       import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
       import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
     
@@ -216,8 +215,18 @@
         measurementId: "G-Q0EXN3N281"
       };
     
+      // 初始化Firebase
       const app = initializeApp(firebaseConfig);
       const database = getDatabase(app);
+
+      // 将数据库引用暴露给全局作用域
+      window.firebaseDatabase = {
+        ref,
+        set,
+        onValue,
+        remove,
+        database
+      };
     </script>
     
     <h1>欢迎来到Anna的暑期乐园</h1>
@@ -291,6 +300,8 @@
         document.addEventListener('DOMContentLoaded', function() {
             localStorage.setItem('userId', userId);
 
+            const { ref, onValue, database } = window.firebaseDatabase;
+            
             // 监听投票数据变化
             const votesRef = ref(database, 'votes');
             onValue(votesRef, (snapshot) => {
@@ -467,10 +478,12 @@
                 }
             });
         }
-        //（这当中不知道是否符合要求）
+        //（这当中不知道是否符合要求，应该没问题）
         
         // 提交投票（Firebase版）
           async function submitVote() {
+            const { ref, set, database } = window.firebaseDatabase;
+              
             if (selectedDates.length === 0) {
               alert('请选择至少一个日期再提交投票');
               return;
@@ -522,6 +535,8 @@
         
           // 取消投票（Firebase版）
           async function cancelVote() {
+            const { ref, remove, database } = window.firebaseDatabase;
+              
             if (hasVoted) {
               try {
                 // 从Firebase删除用户投票记录
