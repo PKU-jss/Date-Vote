@@ -220,7 +220,7 @@
 <body>
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
-      import { getDatabase, ref, set, onValue, remove, update } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
+      import { getDatabase, ref, set, onValue, remove, update, get } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
     
       const firebaseConfig = {
         apiKey: "AIzaSyDZT7XIeBQq9uHY1kZvuQYcZm6KT1jV1Bg",
@@ -244,6 +244,7 @@
         onValue,
         remove,
         update,
+        get,
         database
       };
     </script>
@@ -571,33 +572,56 @@
         
           // 取消投票（Firebase版）
           async function cancelVote() {
-            const { ref, remove, database } = window.firebaseDatabase;
+            const { ref, remove, update，database } = window.firebaseDatabase;
               
             if (hasVoted) {
-              try {
-                // 从Firebase删除用户投票记录
-                const userRef = ref(database, `users/${userId}`);
-                await remove(userRef);
-                
-                // 重置本地状态
-                hasVoted = false;
-                document.getElementById('submitVote').classList.remove('already-voted');
-                document.getElementById('submitVote').disabled = false;
-                document.getElementById('submitVote').textContent = '提交我的投票';
-                document.getElementById('votedMessage').style.display = 'none';
-                
-                selectedDates = [];
-              } catch (error) {
+                if (!confirm('确定要取消您的投票吗？')) return;
+                try {
+                // 1. 获取用户之前投票的日期
+            const userRef = ref(database, `users/${userId}`);
+            const snapshot = await get(userRef);
+            const userData = snapshot.val();
+            const votedDates = userData?.votedDates || [];
+            
+            // 2. 准备更新数据
+            const updates = {};
+            
+            // 3. 减少票数
+            votedDates.forEach(date => {
+                updates[`votes/${date}`] = Math.max(0, (votes[date] || 1) - 1);
+            });
+            
+            // 4. 删除用户记录并更新票数
+            updates[`users/${userId}`] = null; // 等同于remove
+            await update(ref(database), updates);
+            
+            // 5. 更新本地状态
+            hasVoted = false;
+            votes = {...votes};
+            votedDates.forEach(date => {
+                if (votes[date]) votes[date] -= 1;
+            });
+            
+            document.getElementById('submitVote').classList.remove('already-voted');
+            document.getElementById('submitVote').disabled = false;
+            document.getElementById('submitVote').textContent = '提交我的投票';
+            document.getElementById('votedMessage').style.display = 'none';
+            
+            // 6. 重新加载界面
+            selectedDates = [];
+            loadCalendar();
+            
+            } catch (error) {
                 console.error("取消投票失败:", error);
-                alert('取消投票失败，请刷新页面重试');
-              }
+                alert('取消投票失败: ' + error.message);
+            }
             } else {
-              // 清除已选择的日期
-              const selectedCells = document.querySelectorAll('.day-cell.selected');
-              selectedCells.forEach(cell => {
-                cell.classList.remove('selected');
-              });
-              selectedDates = [];
+                // 清除已选择的日期（未提交状态）
+                const selectedCells = document.querySelectorAll('.day-cell.selected');
+                selectedCells.forEach(cell => {
+                    cell.classList.remove('selected');
+                });
+                selectedDates = [];
             }
           }
 
