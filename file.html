@@ -79,14 +79,21 @@
             left: 0;
             right: 0;
             text-align: center;
+            font-size: 20px; /* 增大日期数字字体 */
+            z-index: 10; /* 确保数字在最上层 */
         }
-        .vote-fill {
+        .vote-fill-container {
             position: absolute;
             bottom: 0;
             left: 0;
             width: 100%;
-            background-color: #4CAF50;
-            transition: height 0.3s ease;
+            display: flex;
+            flex-direction: column-reverse; /* 从底部开始填充 */
+        }
+        .vote-fill-block {
+            height: 20%; /* 每票占20%的高度 */
+            background-color: #c8e6c9; /* 浅绿色 */
+            transition: all 0.3s ease;
         }
         .vote-count {
             position: absolute;
@@ -94,8 +101,9 @@
             left: 0;
             right: 0;
             text-align: center;
-            font-size: 12px;
+            font-size: 10px; /* 减小票数字体 */
             color: #333;
+            z-index: 10; /* 确保票数在最上层 */
         }
         .legend {
             display: flex;
@@ -113,7 +121,7 @@
         .legend-color {
             width: 20px;
             height: 20px;
-            background-color: #4CAF50;
+            background-color: #c8e6c9; /* 浅绿色 */
         }
         .result-section {
             margin-top: 30px;
@@ -187,7 +195,7 @@
         <div class="legend">
             <div class="legend-item">
                 <div class="legend-color"></div>
-                <span>投票数越多，颜色越深</span>
+                <span>每个方块代表一票，最多5票</span>
             </div>
         </div>
         
@@ -205,7 +213,7 @@
     <script>
         // 存储投票数据的变量
         let votes = {};
-        let selectedDate = null;
+        let selectedDates = []; // 存储已选择的日期
         let currentDate = new Date();
         let currentMonth = currentDate.getMonth();
         let currentYear = currentDate.getFullYear();
@@ -278,11 +286,23 @@
                         const dayOfMonth = date;
                         const fullDate = `${currentYear}-${currentMonth + 1}-${dayOfMonth}`;
                         
+                        // 创建填充块
+                        const voteFillContainer = document.createElement('div');
+                        voteFillContainer.className = 'vote-fill-container';
+                        
+                        // 创建填充块（最多5个）
+                        const votesForDate = votes[fullDate] || 0;
+                        for (let i = 0; i < Math.min(votesForDate, 5); i++) {
+                            const fillBlock = document.createElement('div');
+                            fillBlock.className = 'vote-fill-block';
+                            voteFillContainer.appendChild(fillBlock);
+                        }
+                        
                         td.innerHTML = `
                             <div class="vote-day" data-date="${fullDate}">
                                 <div class="vote-day-number">${dayOfMonth}</div>
-                                <div class="vote-fill" style="height: ${getVotePercentage(fullDate)}%;"></div>
-                                <div class="vote-count">${votes[fullDate] || 0}</div>
+                                ${voteFillContainer.outerHTML}
+                                <div class="vote-count">${votesForDate || 0}</div>
                             </div>
                         `;
                         
@@ -310,32 +330,23 @@
         
         // 切换日期选择状态
         function toggleDateSelection(cell, date) {
-            // 取消之前选择的日期
-            const selectedCells = document.querySelectorAll('.day-cell.selected');
-            selectedCells.forEach(cell => {
-                cell.classList.remove('selected');
-                cell.querySelector('.vote-day').style.boxShadow = 'none';
-            });
+            const selectedElement = cell.querySelector('.vote-day');
             
-            // 选中当前日期
-            if (cell.classList.contains('selected')) {
-                cell.classList.remove('selected');
-                cell.querySelector('.vote-day').style.boxShadow = 'none';
-                selectedDate = null;
+            if (selectedElement.classList.contains('selected')) {
+                // 取消选择
+                selectedElement.classList.remove('selected');
+                Array.from(selectedElement.querySelectorAll('.vote-fill-block')).forEach(block => {
+                    block.style.opacity = '0.5';
+                });
+                selectedDates = selectedDates.filter(d => d !== date);
             } else {
-                cell.classList.add('selected');
-                cell.querySelector('.vote-day').style.boxShadow = '0 0 5px 2px rgba(76, 175, 80, 0.5)';
-                selectedDate = date;
+                // 选择日期
+                selectedElement.classList.add('selected');
+                Array.from(selectedElement.querySelectorAll('.vote-fill-block')).forEach(block => {
+                    block.style.opacity = '1';
+                });
+                selectedDates.push(date);
             }
-        }
-        
-        // 获取投票百分比
-        function getVotePercentage(date) {
-            const totalVotes = Object.values(votes).reduce((sum, count) => sum + count, 0);
-            if (totalVotes === 0) {
-                return 0;
-            }
-            return Math.min(100, (votes[date] || 0) / totalVotes * 100);
         }
         
         // 更新投票结果显示
@@ -368,13 +379,15 @@
         
         // 提交投票
         function submitVote() {
-            if (!selectedDate) {
-                alert('请选择一个日期再提交投票');
+            if (selectedDates.length === 0) {
+                alert('请选择至少一个日期再提交投票');
                 return;
             }
             
             // 更新投票数据
-            votes[selectedDate] = (votes[selectedDate] || 0) + 1;
+            selectedDates.forEach(date => {
+                votes[date] = (votes[date] || 0) + 1;
+            });
             
             // 保存到本地存储
             localStorage.setItem('activityVotes', JSON.stringify(votes));
@@ -383,11 +396,15 @@
             loadCalendar();
             
             // 显示已投票消息
-            document.getElementById('votedMessage').textContent = `感谢您的投票！您选择了 ${selectedDate}`;
+            const dateText = selectedDates.length > 1 ? 
+                `您选择了以下日期：` + selectedDates.map(date => `${date.split('-')[0]}年${date.split('-')[1]}月${date.split('-')[2]}日`).join('，') :
+                `您选择了 ${selectedDates[0].split('-')[0]}年${selectedDates[0].split('-')[1]}月${selectedDates[0].split('-')[2]}日`;
+                
+            document.getElementById('votedMessage').textContent = `感谢您的投票！${dateText}`;
             document.getElementById('votedMessage').style.display = 'block';
             
-            // 禁用提交按钮
-            document.getElementById('submitVote').disabled = true;
+            // 重置选择
+            selectedDates = [];
         }
     </script>
 </body>
