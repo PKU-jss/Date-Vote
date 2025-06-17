@@ -323,7 +323,14 @@
             // 监听投票数据变化
             const votesRef = ref(database, 'votes');
             onValue(votesRef, (snapshot) => {
-              votes = snapshot.val() || {};
+                const data = snapshot.val();
+                votes = data || {};
+                
+                if (!data) {
+                    set(votesRef, {}).catch(error => {
+                        console.error("初始化投票数据失败:", error);
+                    });
+                }
               loadCalendar();
             });
             
@@ -526,22 +533,20 @@
             
             try {
               // 更新投票数据
-              const newVotes = {...votes};
+              const updates = {};
               selectedDates.forEach(date => {
-                newVotes[date] = (newVotes[date] || 0) + 1;
-              });
+                updates[`votes/${date}`] = (votes[date] || 0) + 1;
+             });
               
-              // 原子操作：同时更新投票数据和用户状态
-              const updates = {
-                'votes': newVotes,
-                [`users/${userId}`]: {
-                  hasVoted: true,
-                  votedDates: selectedDates,
-                  timestamp: Date.now()
-                }
-              };
+              updates[`users/${userId}`] = {
+                    hasVoted: true,
+                    votedDates: selectedDates,
+                    timestamp: Date.now()
+                };
+                
+                // 执行原子更新
+                await update(ref(database), updates);
               
-              await set(ref(database), updates);
               
               // 更新UI状态
               document.getElementById('submitVote').classList.add('already-voted');
@@ -550,13 +555,13 @@
               
               // 显示成功消息
               const dateText = selectedDates.length > 1 ? 
-                `您选择了以下日期：` + selectedDates.map(date => `${date.split('-')[0]}年${date.split('-')[1]}月${date.split('-')[2]}日`).join('，') :
-                `您选择了 ${selectedDates[0].split('-')[0]}年${selectedDates[0].split('-')[1]}月${selectedDates[0].split('-')[2]}日`;
+                    `您选择了以下日期：` + selectedDates.map(date => `${date.split('-')[0]}年${date.split('-')[1]}月${date.split('-')[2]}日`).join('，') :
+                    `您选择了 ${selectedDates[0].split('-')[0]}年${selectedDates[0].split('-')[1]}月${selectedDates[0].split('-')[2]}日`;
+                    
+                document.getElementById('votedMessage').textContent = `感谢您的投票！${dateText}`;
+                document.getElementById('votedMessage').style.display = 'block';
                 
-              document.getElementById('votedMessage').textContent = `感谢您的投票！${dateText}`;
-              document.getElementById('votedMessage').style.display = 'block';
-              
-              selectedDates = [];
+                selectedDates = [];
             } catch (error) {
               console.error("投票提交失败:", error);
               alert('投票提交失败，请刷新页面重试');
