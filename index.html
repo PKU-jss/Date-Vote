@@ -220,7 +220,7 @@
 <body>
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
-      import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
+      import { getDatabase, ref, set, onValue, remove, update } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
     
       const firebaseConfig = {
         apiKey: "AIzaSyDZT7XIeBQq9uHY1kZvuQYcZm6KT1jV1Bg",
@@ -235,6 +235,7 @@
     
       // 初始化Firebase
       const app = initializeApp(firebaseConfig);
+      const analytics = getAnalytics(app);
       const database = getDatabase(app);
 
       // 将数据库引用暴露给全局作用域
@@ -243,6 +244,7 @@
         set,
         onValue,
         remove,
+        update,
         database
       };
     </script>
@@ -519,7 +521,7 @@
         
         // 提交投票（Firebase版）
           async function submitVote() {
-            const { ref, set, database } = window.firebaseDatabase;
+            const { ref, update, database } = window.firebaseDatabase;
               
             if (selectedDates.length === 0) {
               alert('请选择至少一个日期再提交投票');
@@ -564,7 +566,7 @@
                 selectedDates = [];
             } catch (error) {
               console.error("投票提交失败:", error);
-              alert('投票提交失败，请刷新页面重试');
+              alert('投票提交失败:' + error.message);
             }
           }
         
